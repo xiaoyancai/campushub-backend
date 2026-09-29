@@ -48,7 +48,7 @@ Expected statuses in order: 200, 200, 400, 201 (409 on repetition), 200, 400.
 - Reservation id/status are server-managed readOnly fields. The request uses the Reservation schema but supplies only resourceId, userId, startTime and endTime. Responses contain all six fields; new reservations are CONFIRMED.
 - Timestamps use format: date-time and additional syntax/calendar validation. Require timezone and uppercase T/Z, with optional 1–3 fractional digits. Invalid dates and endTime <= startTime return 400.
 - Overlap uses half-open intervals [startTime, endTime), allowing adjacent bookings. Timezones are compared as instants. PENDING and CONFIRMED block overlaps; CANCELLED does not.
-- Active means PENDING or CONFIRMED regardless of date. Unknown students return an empty array. Cancellation is outside this assignment's required endpoints.
+- Active means PENDING or CONFIRMED regardless of date. Unknown students return an empty array. DELETE /api/v1/reservations/{id} marks an existing reservation CANCELLED and returns 204 with no body; repeated cancellation also returns 204. Unknown IDs return 404 with code/message. Cancelled records remain available through GET by ID, are excluded from active listings, and release their time slots.
 - isAvailable is operational availability, independent of booked time slots. Unavailable resources return 409 RESOURCE_UNAVAILABLE; unknown IDs return 400 UNKNOWN_RESOURCE.
 - Responses use 200/201/400/409/500 as documented, with standardized code/message errors.
 

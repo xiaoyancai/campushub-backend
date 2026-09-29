@@ -23,4 +23,4 @@ export interface ErrorResponse {
   code: string;
   message: string;
 }
-export type ApiStatusCode = 200 | 201 | 400 | 409 | 500;
+export type ApiStatusCode = 200 | 201 | 204 | 400 | 404 | 409 | 500;

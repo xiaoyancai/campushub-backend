@@ -19,6 +19,8 @@ export interface ReservationService {
   listResources(type?: ResourceType): Resource[];
   create(input: CreateReservationRequest): Reservation;
   listForUser(userId: string): Reservation[];
+  getById(id: string): Reservation | undefined;
+  cancel(id: string): boolean;
 }
 export function createReservationService(): ReservationService {
   const resources: Resource[] = [
@@ -91,6 +93,16 @@ export function createReservationService(): ReservationService {
       };
       reservations.push(reservation);
       return { ...reservation };
+    },
+    cancel(id: string): boolean {
+      const reservation = reservations.find((r) => r.id === id);
+      if (!reservation) return false;
+      reservation.status = "CANCELLED";
+      return true;
+    },
+    getById(id: string): Reservation | undefined {
+      const reservation = reservations.find((r) => r.id === id);
+      return reservation ? { ...reservation } : undefined;
     },
     listForUser(userId: string): Reservation[] {
       return reservations

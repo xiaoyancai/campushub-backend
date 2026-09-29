@@ -16,10 +16,12 @@ interface ReservationControllers {
   listResources: Handler<Resource[]>;
   createReservation: Handler<Reservation>;
   listUserReservations: Handler<Reservation[]>;
+  getReservation: Handler<Reservation>;
+  cancelReservation: Handler<void>;
 }
 function fail(
   response: Response,
-  status: 400 | 409,
+  status: 400 | 404 | 409,
   code: string,
   message: string,
 ): void {
@@ -105,16 +107,14 @@ export function createReservationControllers(
         return;
       }
       try {
-        response
-          .status(201)
-          .json(
-            service.create({
-              resourceId: body.resourceId,
-              userId: body.userId,
-              startTime: body.startTime,
-              endTime: body.endTime,
-            }),
-          );
+        response.status(201).json(
+          service.create({
+            resourceId: body.resourceId,
+            userId: body.userId,
+            startTime: body.startTime,
+            endTime: body.endTime,
+          }),
+        );
       } catch (error: unknown) {
         if (error instanceof ReservationFailure) {
           fail(
@@ -125,6 +125,31 @@ export function createReservationControllers(
           );
           return;
         }
+        next(error);
+      }
+    },
+    cancelReservation(request, response, next): void {
+      try {
+        const id = request.params.id;
+        if (id === undefined || !service.cancel(id)) {
+          fail(response, 404, "NOT_FOUND", "Reservation not found.");
+          return;
+        }
+        response.status(204).end();
+      } catch (error: unknown) {
+        next(error);
+      }
+    },
+    getReservation(request, response, next): void {
+      try {
+        const id = request.params.id;
+        const reservation = id === undefined ? undefined : service.getById(id);
+        if (reservation === undefined) {
+          fail(response, 404, "NOT_FOUND", "Reservation not found.");
+          return;
+        }
+        response.status(200).json(reservation);
+      } catch (error: unknown) {
         next(error);
       }
     },
