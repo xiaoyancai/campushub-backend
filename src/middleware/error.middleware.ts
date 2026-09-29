@@ -1,6 +1,5 @@
 import type { ErrorRequestHandler } from "express";
-
-import type { ErrorResponse } from "../contracts/health.contract.js";
+import type { ErrorResponse } from "../types/reservation.js";
 
 export const errorHandler: ErrorRequestHandler = (
   error: unknown,
@@ -8,12 +7,14 @@ export const errorHandler: ErrorRequestHandler = (
   response,
   _next,
 ): void => {
-  console.error("Unhandled request error", error);
-
-  const body: ErrorResponse = {
-    status: "error",
-    message: "Internal server error",
-  };
-
-  response.status(500).json(body);
+  const invalidJson =
+    typeof error === "object" &&
+    error !== null &&
+    "type" in error &&
+    error.type === "entity.parse.failed";
+  const status: 400 | 500 = invalidJson ? 400 : 500;
+  const body: ErrorResponse = invalidJson
+    ? { code: "VALIDATION_ERROR", message: "Malformed JSON request body." }
+    : { code: "INTERNAL_ERROR", message: "Internal server error" };
+  response.status(status).json(body);
 };

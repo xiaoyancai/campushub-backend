@@ -1,10 +1,12 @@
 import express, { type Express } from "express";
+import { pathToFileURL } from "node:url";
+import { createReservationRouter } from "./routes/reservation.routes.js";
 import type { Server } from "node:http";
 
 import { errorHandler } from "./middleware/error.middleware.js";
 import { healthRouter } from "./routes/health.routes.js";
 
-const DEFAULT_PORT = 8080;
+const DEFAULT_PORT = 3000;
 
 function resolvePort(rawPort: string | undefined): number {
   if (rawPort === undefined) {
@@ -23,7 +25,9 @@ function resolvePort(rawPort: string | undefined): number {
 export function createApp(): Express {
   const app = express();
 
+  app.use(express.json());
   app.use("/api/v1/health", healthRouter);
+  app.use("/api/v1", createReservationRouter());
   app.use(errorHandler);
 
   return app;
@@ -43,4 +47,9 @@ function startServer(): Server {
   return server;
 }
 
-startServer();
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  startServer();
+}

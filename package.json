@@ -8,7 +8,7 @@
     "dev": "node --import tsx src/app.ts",
     "start": "node dist/app.js",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --import tsx --test test/*.test.ts"
   },
   "keywords": [],
   "author": "",
