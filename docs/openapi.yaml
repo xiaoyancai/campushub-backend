@@ -2,10 +2,7 @@ openapi: 3.0.3
 info:
   title: CampusHub Reservation API
   version: 1.0.0
-  description: Campus resource and reservation contract; in-memory teaching implementation.
-  license:
-    name: ISC
-    url: https://opensource.org/license/isc-license-txt
+  description: API specification for managing campus resources and time-slotted reservations.
 servers:
   - url: http://localhost:3000/api/v1
     description: Local Development Server
