@@ -1,113 +1,130 @@
 import { randomUUID } from "node:crypto";
+import {
+  ResourceModel,
+  type ResourceRecord,
+} from "../models/Resource.model.js";
+import {
+  ReservationModel,
+  type ReservationRecord,
+} from "../models/Reservation.model.js";
 import type {
   CreateReservationRequest,
   Reservation,
-  Resource,
-  ResourceType,
 } from "../types/reservation.js";
 
 export class ReservationFailure extends Error {
   constructor(
     public readonly code:
-      "UNKNOWN_RESOURCE" | "RESOURCE_UNAVAILABLE" | "DOUBLE_BOOKING",
+      | "UNKNOWN_RESOURCE"
+      | "RESOURCE_UNAVAILABLE"
+      | "DOUBLE_BOOKING"
+      | "VALIDATION_ERROR",
     message: string,
   ) {
     super(message);
   }
 }
 export interface ReservationService {
-  listResources(type?: ResourceType): Resource[];
-  create(input: CreateReservationRequest): Reservation;
-  listForUser(userId: string): Reservation[];
-  getById(id: string): Reservation | undefined;
-  cancel(id: string): boolean;
+  create(input: CreateReservationRequest): Promise<Reservation>;
+  listForUser(userId: string): Promise<Reservation[]>;
+  getById(id: string): Promise<Reservation | undefined>;
+  cancel(id: string): Promise<boolean>;
+}
+type PopulatedReservation = Omit<ReservationRecord, "resourceId"> & {
+  resourceId: ResourceRecord | null;
+};
+function toResponse(record: PopulatedReservation): Reservation {
+  if (!record.resourceId) throw new Error("Reservation resource is missing");
+  return {
+    id: record.publicId,
+    resourceId: record.resourceId.publicId,
+    userId: record.userId,
+    startTime: record.startTime.toISOString(),
+    endTime: record.endTime.toISOString(),
+    status: record.status,
+  };
 }
 export function createReservationService(): ReservationService {
-  const resources: Resource[] = [
-    {
-      id: "res-101",
-      name: "Study Room 302",
-      type: "ROOM",
-      location: "Library, Floor 3",
-      isAvailable: true,
-    },
-    {
-      id: "res-102",
-      name: "3D Printer A",
-      type: "EQUIPMENT",
-      location: "Maker Space",
-      isAvailable: true,
-    },
-    {
-      id: "res-103",
-      name: "Computer Lab",
-      type: "LAB",
-      location: "Science Building",
-      isAvailable: true,
-    },
-    {
-      id: "res-104",
-      name: "Study Room 304",
-      type: "ROOM",
-      location: "Library, Floor 3",
-      isAvailable: false,
-    },
-  ];
-  const reservations: Reservation[] = [];
   return {
-    listResources(type?: ResourceType): Resource[] {
-      return resources
-        .filter((r) => type === undefined || r.type === type)
-        .map((r) => ({ ...r }));
-    },
-    create(input: CreateReservationRequest): Reservation {
-      const resource = resources.find((r) => r.id === input.resourceId);
-      if (!resource)
-        throw new ReservationFailure("UNKNOWN_RESOURCE", "Unknown resourceId.");
-      if (!resource.isAvailable)
-        throw new ReservationFailure(
-          "RESOURCE_UNAVAILABLE",
-          "Resource is currently unavailable.",
-        );
-      const start = Date.parse(input.startTime),
-        end = Date.parse(input.endTime);
-      // Synchronous check-and-insert for this single-process in-memory lab.
+    async create(input: CreateReservationRequest): Promise<Reservation> {
+      const startTime = new Date(input.startTime),
+        endTime = new Date(input.endTime);
       if (
-        reservations.some(
-          (r) =>
-            r.resourceId === input.resourceId &&
-            r.status !== "CANCELLED" &&
-            start < Date.parse(r.endTime) &&
-            end > Date.parse(r.startTime),
-        )
+        !Number.isFinite(startTime.getTime()) ||
+        !Number.isFinite(endTime.getTime()) ||
+        endTime <= startTime
       ) {
         throw new ReservationFailure(
-          "DOUBLE_BOOKING",
-          "Resource is already reserved for this time slot.",
+          "VALIDATION_ERROR",
+          "endTime must be after startTime.",
         );
       }
-      const reservation: Reservation = {
-        ...input,
-        id: randomUUID(),
-        status: "CONFIRMED",
-      };
-      reservations.push(reservation);
-      return { ...reservation };
+
+      return ResourceModel.db.transaction(
+        async (session): Promise<Reservation> => {
+          const resource = await ResourceModel.findOneAndUpdate(
+            { publicId: input.resourceId },
+            { $inc: { bookingVersion: 1 } },
+            { returnDocument: "after", session },
+          );
+          if (!resource)
+            throw new ReservationFailure(
+              "UNKNOWN_RESOURCE",
+              "Unknown resourceId.",
+            );
+          if (!resource.isAvailable)
+            throw new ReservationFailure(
+              "RESOURCE_UNAVAILABLE",
+              "Resource is currently unavailable.",
+            );
+          const overlap = await ReservationModel.exists({
+            resourceId: resource._id,
+            status: { $in: ["PENDING", "CONFIRMED"] },
+            startTime: { $lt: endTime },
+            endTime: { $gt: startTime },
+          }).session(session);
+          if (overlap)
+            throw new ReservationFailure(
+              "DOUBLE_BOOKING",
+              "Resource is already reserved for this time slot.",
+            );
+          const record = new ReservationModel({
+            publicId: randomUUID(),
+            resourceId: resource._id,
+            userId: input.userId,
+            startTime,
+            endTime,
+            status: "CONFIRMED",
+          });
+          await record.save({ session });
+          return toResponse({
+            ...record.toObject(),
+            resourceId: resource.toObject(),
+          });
+        },
+      );
     },
-    cancel(id: string): boolean {
-      const reservation = reservations.find((r) => r.id === id);
-      if (!reservation) return false;
-      reservation.status = "CANCELLED";
-      return true;
+    async cancel(id: string): Promise<boolean> {
+      const result = await ReservationModel.updateOne(
+        { publicId: id },
+        { $set: { status: "CANCELLED" } },
+      );
+      return result.matchedCount > 0;
     },
-    getById(id: string): Reservation | undefined {
-      const reservation = reservations.find((r) => r.id === id);
-      return reservation ? { ...reservation } : undefined;
+    async getById(id: string): Promise<Reservation | undefined> {
+      const record = await ReservationModel.findOne({ publicId: id })
+        .populate<{ resourceId: ResourceRecord | null }>("resourceId")
+        .lean();
+      return record ? toResponse(record) : undefined;
     },
-    listForUser(userId: string): Reservation[] {
-      return reservations
-        .filter((r) => r.userId === userId && r.status !== "CANCELLED")
-        .map((r) => ({ ...r }));
+    async listForUser(userId: string): Promise<Reservation[]> {
+      const records = await ReservationModel.find({
+        userId,
+        status: { $in: ["PENDING", "CONFIRMED"] },
+      })
+        .populate<{ resourceId: ResourceRecord | null }>("resourceId")
+        .lean();
+      return records.map(toResponse);
     },
   };
 }

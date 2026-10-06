@@ -1,7 +1,28 @@
-import { test } from "node:test";
+import { test, before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { createApp } from "../src/app.js";
+import { MongoMemoryReplSet } from "mongodb-memory-server";
+import { connectDatabase, disconnectDatabase } from "../src/config/database.js";
+import { ResourceModel } from "../src/models/Resource.model.js";
+import { ReservationModel } from "../src/models/Reservation.model.js";
+import { seedResources } from "../src/services/seed.service.js";
+let database: MongoMemoryReplSet | undefined;
+before(async () => {
+  database = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
+  await connectDatabase(database.getUri());
+  await ResourceModel.init();
+  await ReservationModel.init();
+});
+beforeEach(async () => {
+  await ReservationModel.deleteMany({});
+  await ResourceModel.deleteMany({});
+  await seedResources();
+});
+after(async () => {
+  await disconnectDatabase();
+  await database?.stop();
+});
 test("HTTP contract and reservation edge cases", async () => {
   const server = createApp().listen(0, "127.0.0.1");
   await once(server, "listening");
@@ -195,4 +216,80 @@ test("DELETE cancels reservations, releases slots, and returns JSON 404 for unkn
       server.close((error) => (error ? reject(error) : resolve())),
     );
   }
+});
+
+test("concurrent booking is atomic and survives a new app instance", async () => {
+  const first = createApp().listen(0, "127.0.0.1");
+  const second = createApp().listen(0, "127.0.0.1");
+  await Promise.all([once(first, "listening"), once(second, "listening")]);
+  const firstAddress = first.address(),
+    secondAddress = second.address();
+  assert(firstAddress && typeof firstAddress !== "string");
+  assert(secondAddress && typeof secondAddress !== "string");
+  const firstBase = `http://127.0.0.1:${firstAddress.port}/api/v1`;
+  const secondBase = `http://127.0.0.1:${secondAddress.port}/api/v1`;
+  try {
+    const results = await Promise.all(
+      [firstBase, secondBase].map((base) =>
+        fetch(`${base}/reservations`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            resourceId: "res-101",
+            userId: "parallel-user",
+            startTime: "2026-10-01T10:00:00Z",
+            endTime: "2026-10-01T11:00:00Z",
+          }),
+        }),
+      ),
+    );
+    assert.deepEqual(results.map((r) => r.status).sort(), [201, 409]);
+    assert.equal(await ReservationModel.countDocuments(), 1);
+    const read = await fetch(`${secondBase}/reservations/user/parallel-user`);
+    const records: unknown = await read.json();
+    assert(Array.isArray(records));
+    assert.equal(records.length, 1);
+    await disconnectDatabase();
+    assert(database);
+    await connectDatabase(database.getUri());
+    const persisted = await fetch(
+      `${firstBase}/reservations/user/parallel-user`,
+    );
+    assert.deepEqual(await persisted.json(), records);
+  } finally {
+    await Promise.all(
+      [first, second].map(
+        (server) =>
+          new Promise<void>((resolve, reject) =>
+            server.close((error) => (error ? reject(error) : resolve())),
+          ),
+      ),
+    );
+  }
+});
+
+test("PENDING blocks overlap and seeding preserves existing records", async () => {
+  const resource = await ResourceModel.findOne({ publicId: "res-101" });
+  assert(resource);
+  await seedResources();
+  assert.equal(await ResourceModel.countDocuments(), 4);
+  const { createReservationService } =
+    await import("../src/services/reservation.service.js");
+  const service = createReservationService();
+  const slot = {
+    resourceId: "res-101",
+    userId: "pending-user",
+    startTime: "2026-10-01T10:00:00Z",
+    endTime: "2026-10-01T11:00:00Z",
+  };
+  const created = await service.create(slot);
+  await ReservationModel.updateOne(
+    { publicId: created.id },
+    { $set: { status: "PENDING" } },
+  );
+  await assert.rejects(service.create(slot), { code: "DOUBLE_BOOKING" });
+  assert.equal(
+    (await service.listForUser("pending-user"))[0]?.status,
+    "PENDING",
+  );
 });

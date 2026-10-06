@@ -1,19 +1,15 @@
 import type { RequestHandler, Response } from "express";
 import {
   ReservationFailure,
+  createReservationService,
   type ReservationService,
 } from "../services/reservation.service.js";
-import type {
-  Reservation,
-  Resource,
-  ErrorResponse,
-} from "../types/reservation.js";
+import type { Reservation, ErrorResponse } from "../types/reservation.js";
 
 type Params = Record<string, string>;
 type Query = Record<string, unknown>;
 type Handler<T> = RequestHandler<Params, T | ErrorResponse, unknown, Query>;
 interface ReservationControllers {
-  listResources: Handler<Resource[]>;
   createReservation: Handler<Reservation>;
   listUserReservations: Handler<Reservation[]>;
   getReservation: Handler<Reservation>;
@@ -52,32 +48,10 @@ export function validDateTime(value: unknown): value is string {
   );
 }
 export function createReservationControllers(
-  service: ReservationService,
+  service: ReservationService = createReservationService(),
 ): ReservationControllers {
   return {
-    listResources(request, response, next): void {
-      const type = request.query.type;
-      if (
-        type !== undefined &&
-        type !== "ROOM" &&
-        type !== "EQUIPMENT" &&
-        type !== "LAB"
-      ) {
-        fail(
-          response,
-          400,
-          "VALIDATION_ERROR",
-          "type must be ROOM, EQUIPMENT, or LAB when provided.",
-        );
-        return;
-      }
-      try {
-        response.status(200).json(service.listResources(type));
-      } catch (error: unknown) {
-        next(error);
-      }
-    },
-    createReservation(request, response, next): void {
+    async createReservation(request, response, next): Promise<void> {
       const body = request.body;
       if (
         !isRecord(body) ||
@@ -97,18 +71,9 @@ export function createReservationControllers(
         );
         return;
       }
-      if (Date.parse(body.endTime) <= Date.parse(body.startTime)) {
-        fail(
-          response,
-          400,
-          "VALIDATION_ERROR",
-          "endTime must be after startTime.",
-        );
-        return;
-      }
       try {
         response.status(201).json(
-          service.create({
+          await service.create({
             resourceId: body.resourceId,
             userId: body.userId,
             startTime: body.startTime,
@@ -119,7 +84,10 @@ export function createReservationControllers(
         if (error instanceof ReservationFailure) {
           fail(
             response,
-            error.code === "UNKNOWN_RESOURCE" ? 400 : 409,
+            error.code === "UNKNOWN_RESOURCE" ||
+              error.code === "VALIDATION_ERROR"
+              ? 400
+              : 409,
             error.code,
             error.message,
           );
@@ -128,10 +96,10 @@ export function createReservationControllers(
         next(error);
       }
     },
-    cancelReservation(request, response, next): void {
+    async cancelReservation(request, response, next): Promise<void> {
       try {
         const id = request.params.id;
-        if (id === undefined || !service.cancel(id)) {
+        if (id === undefined || !(await service.cancel(id))) {
           fail(response, 404, "NOT_FOUND", "Reservation not found.");
           return;
         }
@@ -140,10 +108,11 @@ export function createReservationControllers(
         next(error);
       }
     },
-    getReservation(request, response, next): void {
+    async getReservation(request, response, next): Promise<void> {
       try {
         const id = request.params.id;
-        const reservation = id === undefined ? undefined : service.getById(id);
+        const reservation =
+          id === undefined ? undefined : await service.getById(id);
         if (reservation === undefined) {
           fail(response, 404, "NOT_FOUND", "Reservation not found.");
           return;
@@ -153,14 +122,14 @@ export function createReservationControllers(
         next(error);
       }
     },
-    listUserReservations(request, response, next): void {
+    async listUserReservations(request, response, next): Promise<void> {
       const userId = request.params.userId;
       if (!nonempty(userId)) {
         fail(response, 400, "VALIDATION_ERROR", "userId must be non-empty.");
         return;
       }
       try {
-        response.status(200).json(service.listForUser(userId));
+        response.status(200).json(await service.listForUser(userId));
       } catch (error: unknown) {
         next(error);
       }
