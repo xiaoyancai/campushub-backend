@@ -11,7 +11,7 @@ paths:
   /resources:
     get:
       operationId: listResources
-      summary: List resources with optional type filter
+      summary: List resources with optional type and availability filters
       parameters:
         - name: type
           in: query
@@ -22,6 +22,12 @@ paths:
               - ROOM
               - EQUIPMENT
               - LAB
+        - name: isAvailable
+          in: query
+          required: false
+          description: Operational availability; only literal true or false is accepted.
+          schema:
+            type: boolean
       responses:
         "200":
           description: Matching resources.
@@ -93,10 +99,10 @@ paths:
   /reservations/user/{userId}:
     get:
       operationId: listUserReservations
-      summary: List active student reservations
+      summary: List all student reservations
       description:
-        Active means PENDING or CONFIRMED regardless of date. Excludes
-        CANCELLED. Unknown users return an empty array.
+        Includes PENDING, CONFIRMED and CANCELLED bookings, sorted by startTime
+        and ID. Unknown users return an empty array.
       parameters:
         - name: userId
           in: path
@@ -107,7 +113,7 @@ paths:
             pattern: \S
       responses:
         "200":
-          description: Active reservations.
+          description: All reservations for the student.
           content:
             application/json:
               schema:
@@ -164,6 +170,68 @@ paths:
           description: Reservation cancelled successfully. No response body.
         "404":
           description: Reservation not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /reservations/{id}/cancel:
+    patch:
+      operationId: cancelReservationStatus
+      summary: Cancel a reservation
+      description: Idempotently marks a reservation CANCELLED and frees its slot. Cancellation is terminal.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Cancelled successfully. No response body.
+        "404":
+          description: Reservation not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /reservations/{id}/confirm:
+    patch:
+      operationId: confirmReservationStatus
+      summary: Confirm a reservation
+      description: Transitions PENDING to CONFIRMED. Already confirmed is idempotent; CANCELLED returns 409.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Confirmed reservation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Reservation"
+        "409":
+          description: INVALID_TRANSITION; cancelled reservations cannot be confirmed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Reservation not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Unexpected server error.
           content:
             application/json:
               schema:

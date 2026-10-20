@@ -14,6 +14,7 @@ interface ReservationControllers {
   listUserReservations: Handler<Reservation[]>;
   getReservation: Handler<Reservation>;
   cancelReservation: Handler<void>;
+  confirmReservation: Handler<Reservation>;
 }
 function fail(
   response: Response,
@@ -91,6 +92,27 @@ export function createReservationControllers(
             error.code,
             error.message,
           );
+          return;
+        }
+        next(error);
+      }
+    },
+    async confirmReservation(request, response, next): Promise<void> {
+      try {
+        const id = request.params.id;
+        const reservation =
+          id === undefined ? undefined : await service.confirm(id);
+        if (!reservation) {
+          fail(response, 404, "NOT_FOUND", "Reservation not found.");
+          return;
+        }
+        response.status(200).json(reservation);
+      } catch (error: unknown) {
+        if (
+          error instanceof ReservationFailure &&
+          error.code === "INVALID_TRANSITION"
+        ) {
+          fail(response, 409, error.code, error.message);
           return;
         }
         next(error);

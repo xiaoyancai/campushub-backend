@@ -1,6 +1,6 @@
 # CampusHub Backend — Database and Layer Isolation Lab
 
-TypeScript, Express 5 and Mongoose, with request flow **route → controller → service → model**. The Lab 2 OpenAPI contract in `docs/openapi.yaml` remains unchanged.
+TypeScript, Express 5 and Mongoose, with request flow **route → controller → service → model**. The Lab 4 OpenAPI contract in `docs/openapi.yaml` documents filtering, full student history, and status updates.
 
 ## Setup
 
@@ -48,10 +48,6 @@ npm test
 
 Tests start an isolated, real single-node MongoDB replica set with the development-only `mongodb-memory-server` package. The first run needs network access to download MongoDB and a writable binary cache. No existing database or personal data is used. Fixtures are reset between tests, and the temporary server is stopped afterward. The original HTTP regression cases are retained, with additional concurrency, persistence, PENDING conflict and idempotent seed cases.
 
-## Required student work
-
-Part 3 of the assignment explicitly requires a **manual code audit without AI**. Perform that review yourself (keeping notes is recommended, not a separate required deliverable), then rerun the manual Lab 2 HTTP tests below against your configured database. Automated checks do not replace that requirement. After review, commit and push the changes and submit your repository URL to Canvas.
-
 ## Manual HTTP tests
 
 ```bash
@@ -75,7 +71,7 @@ Expected statuses in order: 200, 200, 400, 201 (409 on repetition), 200, 400.
 - Reservation id/status are server-managed readOnly fields. The request uses the Reservation schema but supplies only resourceId, userId, startTime and endTime. Responses contain all six fields; new reservations are CONFIRMED.
 - Timestamps use format: date-time and additional syntax/calendar validation. Require timezone and uppercase T/Z, with optional 1–3 fractional digits. Invalid dates and endTime <= startTime return 400.
 - Overlap uses half-open intervals [startTime, endTime), allowing adjacent bookings. Timezones are compared as instants. PENDING and CONFIRMED block overlaps; CANCELLED does not.
-- Active means PENDING or CONFIRMED regardless of date. Unknown students return an empty array. DELETE /api/v1/reservations/{id} marks an existing reservation CANCELLED and returns 204 with no body; repeated cancellation also returns 204. Unknown IDs return 404 with code/message. Cancelled records remain available through GET by ID, are excluded from active listings, and release their time slots.
+- Student listings include all statuses, ordered by start time and ID. Unknown students return an empty array. DELETE /api/v1/reservations/{id} marks an existing reservation CANCELLED and returns 204 with no body; repeated cancellation also returns 204. Unknown IDs return 404 with code/message. Cancelled records remain available through GET by ID, are included in student history, and release their time slots.
 - isAvailable is operational availability, independent of booked time slots. Unavailable resources return 409 RESOURCE_UNAVAILABLE; unknown IDs return 400 UNKNOWN_RESOURCE.
 - Responses use 200/201/400/409/500 as documented, with standardized code/message errors.
 
@@ -84,3 +80,11 @@ Expected statuses in order: 200, 200, 400, 201 (409 on repetition), 200, 400.
 Reservation document validation rejects whitespace-only user IDs and end times that are not after start times. These checks protect normal document `save()`/`create()` operations, including direct model use. They are not MongoDB collection constraints: raw writes and query updates can bypass document validation. Change reservation time ranges by loading the document and calling `save()`; the existing cancellation query changes only status.
 
 Startup logs distinguish missing configuration, invalid port, malformed database configuration, authentication failure, database connectivity failure and port binding errors using fixed messages. Driver messages, connection URIs, causes and stacks are never logged. Unknown failures receive a generic safe message.
+
+## Lab 4 status endpoints
+
+`GET /api/v1/resources?type=ROOM&isAvailable=true` combines optional filters. Availability accepts only `true` or `false`; it describes operational availability, not an unoccupied time slot.
+
+`PATCH /api/v1/reservations/{id}/cancel` returns 204, including repeated cancellation; unknown IDs return 404. The existing DELETE endpoint remains supported. `PATCH /api/v1/reservations/{id}/confirm` returns 200 for PENDING or already CONFIRMED records, 409 for CANCELLED records, and 404 for unknown IDs. New bookings remain CONFIRMED to preserve the creation contract. Pending reservations already hold their slot; confirmation cannot reactivate cancelled bookings.
+
+See `docs/lab4-steering-log.md` for the observed integration failure and remediation, and `docs/lab4-verification.md` for manual HTTP checks.

@@ -18,7 +18,8 @@ export class ReservationFailure extends Error {
       | "UNKNOWN_RESOURCE"
       | "RESOURCE_UNAVAILABLE"
       | "DOUBLE_BOOKING"
-      | "VALIDATION_ERROR",
+      | "VALIDATION_ERROR"
+      | "INVALID_TRANSITION",
     message: string,
   ) {
     super(message);
@@ -29,6 +30,7 @@ export interface ReservationService {
   listForUser(userId: string): Promise<Reservation[]>;
   getById(id: string): Promise<Reservation | undefined>;
   cancel(id: string): Promise<boolean>;
+  confirm(id: string): Promise<Reservation | undefined>;
 }
 type PopulatedReservation = Omit<ReservationRecord, "resourceId"> & {
   resourceId: ResourceRecord | null;
@@ -104,6 +106,24 @@ export function createReservationService(): ReservationService {
         },
       );
     },
+    async confirm(id: string): Promise<Reservation | undefined> {
+      // Conditional update makes cancellation terminal, even during concurrent requests.
+      const record = await ReservationModel.findOneAndUpdate(
+        { publicId: id, status: { $in: ["PENDING", "CONFIRMED"] } },
+        { $set: { status: "CONFIRMED" } },
+        { returnDocument: "after" },
+      )
+        .populate<{ resourceId: ResourceRecord | null }>("resourceId")
+        .lean();
+      if (record) return toResponse(record);
+      if (await ReservationModel.exists({ publicId: id })) {
+        throw new ReservationFailure(
+          "INVALID_TRANSITION",
+          "Cancelled reservations cannot be confirmed.",
+        );
+      }
+      return undefined;
+    },
     async cancel(id: string): Promise<boolean> {
       const result = await ReservationModel.updateOne(
         { publicId: id },
@@ -120,8 +140,8 @@ export function createReservationService(): ReservationService {
     async listForUser(userId: string): Promise<Reservation[]> {
       const records = await ReservationModel.find({
         userId,
-        status: { $in: ["PENDING", "CONFIRMED"] },
       })
+        .sort({ startTime: 1, publicId: 1 })
         .populate<{ resourceId: ResourceRecord | null }>("resourceId")
         .lean();
       return records.map(toResponse);

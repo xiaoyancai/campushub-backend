@@ -7,6 +7,8 @@ export function createReservationRouter(): Router {
   router.post("/reservations", controller.createReservation);
   router.get("/reservations/user/:userId", controller.listUserReservations);
   router.get("/reservations/:id", controller.getReservation);
+  router.patch("/reservations/:id/cancel", controller.cancelReservation);
+  router.patch("/reservations/:id/confirm", controller.confirmReservation);
   router.delete("/reservations/:id", controller.cancelReservation);
   return router;
 }

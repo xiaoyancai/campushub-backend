@@ -90,6 +90,9 @@ test("HTTP contract and reservation edge cases", async () => {
     assert.equal(duplicate.body.code, "DOUBLE_BOOKING");
     for (const times of [
       { startTime: "2026-10-01T09:30:00Z", endTime: "2026-10-01T10:30:00Z" },
+      { startTime: "2026-10-01T10:30:00Z", endTime: "2026-10-01T11:30:00Z" },
+      { startTime: "2026-10-01T09:00:00Z", endTime: "2026-10-01T12:00:00Z" },
+      { startTime: "2026-10-01T10:15:00Z", endTime: "2026-10-01T10:45:00Z" },
       {
         startTime: "2026-10-01T12:00:00+02:00",
         endTime: "2026-10-01T13:00:00+02:00",
@@ -209,7 +212,9 @@ test("DELETE cancels reservations, releases slots, and returns JSON 404 for unkn
     });
     const active = await fetch(`${base}/reservations/user/cancel-user`);
     assert.equal(active.status, 200);
-    assert.deepEqual(await active.json(), []);
+    assert.deepEqual(await active.json(), [
+      { ...reservation, status: "CANCELLED" },
+    ]);
     assert.equal((await create()).status, 201);
   } finally {
     await new Promise<void>((resolve, reject) =>
@@ -292,4 +297,103 @@ test("PENDING blocks overlap and seeding preserves existing records", async () =
     (await service.listForUser("pending-user"))[0]?.status,
     "PENDING",
   );
+});
+
+test("Lab 4 availability filters, status transitions, history, and safe failures", async (t) => {
+  const server = createApp().listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const address = server.address();
+  assert(address && typeof address !== "string");
+  const base = `http://127.0.0.1:${address.port}/api/v1`;
+  const slot = {
+    resourceId: "res-101",
+    userId: "lab4-user",
+    startTime: "2026-10-01T10:00:00Z",
+    endTime: "2026-10-01T11:00:00Z",
+  };
+  const create = () =>
+    fetch(`${base}/reservations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(slot),
+    });
+  try {
+    for (const [query, count] of [
+      ["isAvailable=true", 3],
+      ["isAvailable=false", 1],
+      ["type=ROOM&isAvailable=false", 1],
+      ["type=LAB&isAvailable=false", 0],
+    ] as const) {
+      const response = await fetch(`${base}/resources?${query}`);
+      assert.equal(response.status, 200);
+      const body: unknown = await response.json();
+      assert(Array.isArray(body));
+      assert.equal(body.length, count);
+    }
+    for (const query of [
+      "isAvailable=",
+      "isAvailable=1",
+      "isAvailable=FALSE",
+      "isAvailable=true&isAvailable=false",
+    ]) {
+      assert.equal((await fetch(`${base}/resources?${query}`)).status, 400);
+    }
+    assert.equal((await create()).status, 201);
+    const record = await ReservationModel.findOne({ userId: slot.userId });
+    assert(record);
+    record.status = "PENDING";
+    await record.save();
+    const url = `${base}/reservations/${record.publicId}`;
+    assert.equal((await create()).status, 409);
+    for (let i = 0; i < 2; i++) {
+      const confirmed = await fetch(`${url}/confirm`, { method: "PATCH" });
+      assert.equal(confirmed.status, 200);
+      const body: unknown = await confirmed.json();
+      assert(body && typeof body === "object" && "status" in body);
+      assert.equal(body.status, "CONFIRMED");
+    }
+    for (let i = 0; i < 2; i++) {
+      const cancelled = await fetch(`${url}/cancel`, { method: "PATCH" });
+      assert.equal(cancelled.status, 204);
+      assert.equal(await cancelled.text(), "");
+    }
+    assert.equal((await create()).status, 201);
+    assert.equal(
+      (await fetch(`${url}/confirm`, { method: "PATCH" })).status,
+      409,
+    );
+    for (const action of ["cancel", "confirm"]) {
+      assert.equal(
+        (
+          await fetch(`${base}/reservations/missing/${action}`, {
+            method: "PATCH",
+          })
+        ).status,
+        404,
+      );
+    }
+    const history: unknown = await (
+      await fetch(`${base}/reservations/user/${slot.userId}`)
+    ).json();
+    assert(Array.isArray(history));
+    assert.equal(history.length, 2);
+    assert.deepEqual(
+      await (await fetch(`${base}/reservations/user/other-student`)).json(),
+      [],
+    );
+    const failure = t.mock.method(ResourceModel, "find", () => {
+      throw new Error("private database detail");
+    });
+    const unavailable = await fetch(`${base}/resources`);
+    assert.equal(unavailable.status, 500);
+    assert.deepEqual(await unavailable.json(), {
+      code: "INTERNAL_ERROR",
+      message: "Internal server error",
+    });
+    failure.mock.restore();
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
 });

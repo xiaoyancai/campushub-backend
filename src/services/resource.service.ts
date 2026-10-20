@@ -1,14 +1,18 @@
 import { ResourceModel } from "../models/Resource.model.js";
 import type { Resource, ResourceType } from "../types/reservation.js";
 export interface ResourceService {
-  list(type?: ResourceType): Promise<Resource[]>;
+  list(type?: ResourceType, isAvailable?: boolean): Promise<Resource[]>;
 }
 export function createResourceService(): ResourceService {
   return {
-    async list(type?: ResourceType): Promise<Resource[]> {
-      const records = await ResourceModel.find(
-        type === undefined ? {} : { type },
-      )
+    async list(
+      type?: ResourceType,
+      isAvailable?: boolean,
+    ): Promise<Resource[]> {
+      const records = await ResourceModel.find({
+        ...(type === undefined ? {} : { type }),
+        ...(isAvailable === undefined ? {} : { isAvailable }),
+      })
         .sort({ publicId: 1 })
         .lean();
       return records.map((r): Resource => ({

@@ -15,13 +15,30 @@ export const listResources: RequestHandler<
     type !== "EQUIPMENT" &&
     type !== "LAB"
   ) {
-    response
-      .status(400)
-      .json({
-        code: "VALIDATION_ERROR",
-        message: "type must be ROOM, EQUIPMENT, or LAB when provided.",
-      });
+    response.status(400).json({
+      code: "VALIDATION_ERROR",
+      message: "type must be ROOM, EQUIPMENT, or LAB when provided.",
+    });
     return;
   }
-  response.status(200).json(await service.list(type));
+  const available = request.query.isAvailable;
+  if (
+    available !== undefined &&
+    available !== "true" &&
+    available !== "false"
+  ) {
+    response.status(400).json({
+      code: "VALIDATION_ERROR",
+      message: "isAvailable must be true or false when provided.",
+    });
+    return;
+  }
+  response
+    .status(200)
+    .json(
+      await service.list(
+        type,
+        available === undefined ? undefined : available === "true",
+      ),
+    );
 };
