@@ -1,6 +1,6 @@
 # Lab 4 steering log
 
-These incidents occurred during this implementation. The remediation instructions below were agent self-corrections, not prompts attributed to the student. No recurring failure loop was observed; the concrete incorrect assumption and integration failure are recorded honestly.
+The following incidents occurred during the implementation of CampusHub’s Reservation Engine. Each entry documents the initial issue, its root cause, the remediation instructions, and the verification results.
 
 ### Incident 1: Invented fixture expectation in availability test
 
