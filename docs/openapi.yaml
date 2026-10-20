@@ -29,6 +29,10 @@ paths:
           schema:
             type: boolean
       responses:
+        "413":
+          $ref: "#/components/responses/BodyTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedCharset"
         "200":
           description: Matching resources.
           content:
@@ -38,7 +42,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/Resource"
         "400":
-          description: Invalid input, timestamp, time range, or unknown resource.
+          description: Invalid input, timestamp, time range, unknown resource, malformed JSON, or invalid URL parameter encoding.
           content:
             application/json:
               schema:
@@ -70,6 +74,10 @@ paths:
               startTime: "2026-10-01T10:00:00Z"
               endTime: "2026-10-01T11:00:00Z"
       responses:
+        "413":
+          $ref: "#/components/responses/BodyTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedCharset"
         "201":
           description: Created reservation.
           content:
@@ -85,7 +93,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "400":
-          description: Invalid input, timestamp, time range, or unknown resource.
+          description: Invalid input, timestamp, time range, unknown resource, malformed JSON, or invalid URL parameter encoding.
           content:
             application/json:
               schema:
@@ -112,6 +120,10 @@ paths:
             minLength: 1
             pattern: \S
       responses:
+        "413":
+          $ref: "#/components/responses/BodyTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedCharset"
         "200":
           description: All reservations for the student.
           content:
@@ -121,7 +133,7 @@ paths:
                 items:
                   $ref: "#/components/schemas/Reservation"
         "400":
-          description: Invalid input, timestamp, time range, or unknown resource.
+          description: Invalid input, timestamp, time range, unknown resource, malformed JSON, or invalid URL parameter encoding.
           content:
             application/json:
               schema:
@@ -143,6 +155,14 @@ paths:
           schema:
             type: string
       responses:
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "413":
+          $ref: "#/components/responses/BodyTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedCharset"
+        "500":
+          $ref: "#/components/responses/InternalError"
         "200":
           description: Reservation found.
           content:
@@ -166,6 +186,14 @@ paths:
           schema:
             type: string
       responses:
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "413":
+          $ref: "#/components/responses/BodyTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedCharset"
+        "500":
+          $ref: "#/components/responses/InternalError"
         "204":
           description: Reservation cancelled successfully. No response body.
         "404":
@@ -186,6 +214,12 @@ paths:
           schema:
             type: string
       responses:
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "413":
+          $ref: "#/components/responses/BodyTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedCharset"
         "204":
           description: Cancelled successfully. No response body.
         "404":
@@ -212,6 +246,12 @@ paths:
           schema:
             type: string
       responses:
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "413":
+          $ref: "#/components/responses/BodyTooLarge"
+        "415":
+          $ref: "#/components/responses/UnsupportedCharset"
         "200":
           description: Confirmed reservation.
           content:
@@ -237,6 +277,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 components:
+  responses:
+    InvalidRequest:
+      description: Invalid URL parameter encoding or malformed JSON request body.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: VALIDATION_ERROR
+            message: Invalid URL parameter encoding.
+    BodyTooLarge:
+      description: Request body exceeds the JSON parser limit (100 KB).
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: PAYLOAD_TOO_LARGE
+            message: Request body is too large.
+    UnsupportedCharset:
+      description: Unsupported request charset for JSON parsing.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: UNSUPPORTED_CHARSET
+            message: Unsupported request charset.
+    InternalError:
+      description: Unexpected server error; internal details are never returned.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: INTERNAL_ERROR
+            message: Internal server error
   schemas:
     Resource:
       type: object
