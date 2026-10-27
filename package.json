@@ -9,7 +9,9 @@
     "start": "node dist/app.js",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
-    "seed": "node --import tsx src/seed.ts"
+    "seed": "node --import tsx src/seed.ts",
+    "dev:lab": "node --import tsx tools/lab-server.ts",
+    "lint": "client/node_modules/.bin/eslint --config client/eslint.config.ts src tools test client/src client/integration client/vite.config.ts"
   },
   "keywords": [],
   "author": "",

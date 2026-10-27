@@ -88,3 +88,15 @@ Startup logs distinguish missing configuration, invalid port, malformed database
 `PATCH /api/v1/reservations/{id}/cancel` returns 204, including repeated cancellation; unknown IDs return 404. The existing DELETE endpoint remains supported. `PATCH /api/v1/reservations/{id}/confirm` returns 200 for PENDING or already CONFIRMED records, 409 for CANCELLED records, and 404 for unknown IDs. New bookings remain CONFIRMED to preserve the creation contract. Pending reservations already hold their slot; confirmation cannot reactivate cancelled bookings.
 
 See `docs/lab4-steering-log.md` for the observed integration failure and remediation, and `docs/lab4-verification.md` for manual HTTP checks.
+
+## CampusHub frontend (React + TypeScript)
+
+The `client/` application provides resource browsing, booking and cancellation. See [FRONTEND.md](FRONTEND.md) for setup, configuration, tests and the temporary MongoDB review workflow.
+
+```bash
+npm ci
+npm ci --prefix client
+npm run dev:lab
+```
+
+In a second terminal, run `npm run dev --prefix client` and open the local URL printed by Vite. The temporary database resets when the lab API stops.

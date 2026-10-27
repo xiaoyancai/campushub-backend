@@ -1,18 +1,17 @@
-# CampusHub AI Development Rules
-
-These instructions apply to the entire repository. Follow them for every AI-generated or AI-modified change unless the user gives a more specific instruction that does not conflict with course or security requirements.
+# CampusHub AI
 
 ## Authorized stack and scope
 
-- Build application code with Node.js, TypeScript, Express, and Mongoose.
+- Backend (`src/`): use Node.js, TypeScript, Express, and Mongoose.
+- Frontend (`client/`): use React, TypeScript, Vite, Axios, and CSS Modules. React DOM and development tools for builds, lint, and tests are authorized.
 - Write application source in TypeScript. Do not create handwritten JavaScript source files; JavaScript emitted by the TypeScript compiler belongs only in ignored build output such as `dist/`.
 - Do not add runtime libraries outside the authorized stack without explicit user approval. Prefer the standard library and existing dependencies. Development-only tooling also requires a clear need and must not change the application architecture.
 - Preserve the repository's strict TypeScript configuration. Do not weaken compiler checks to make code compile.
 - Implement only the requested scope. Do not generate scaffolding, endpoints, servers, or infrastructure preemptively.
 
-## Separation of concerns
+## Backend separation of concerns
 
-Keep the request flow strictly layered: **route -> controller -> service -> model**.
+For backend code, keep the request flow strictly layered: **route -> controller -> service -> model**.
 
 ### Routes
 
@@ -63,9 +62,5 @@ Keep the request flow strictly layered: **route -> controller -> service -> mode
 - Do not log secrets, authentication data, or sensitive personal information.
 - Do not introduce a dependency merely for convenience. Before any approved dependency change, consider security, maintenance, and whether existing code or Node.js can provide the capability.
 
-## Verification and change summaries
-
-- Before completing a change, run the relevant TypeScript checks and tests available in the repository. Never claim a check passed unless it was run successfully.
-- Keep changes focused and do not modify unrelated files.
-- End each completed task with a concise summary stating what was built or changed, why it was needed, which of these repository rules shaped the implementation, and what verification was performed.
-- Call out any assumptions, missing tests, or checks that could not be run.
+## Frontend (client/)
+The requested React, React DOM, Axios and CSS Modules stack is authorized for the frontend. Use functional components with named prop interfaces, strict TypeScript and standard React hooks. Keep API requests in src/api/campushubApi.ts, never inline in JSX. Match docs/openapi.yaml; omit readOnly fields from create payloads. All async workflows need loading, error and completion handling. Abort stale read requests. Preserve modular styles, accessible forms, resource unavailability and explicit 409 conflict alerts. Never add authentication claims: this lab API identifies students by userId.
