@@ -5,7 +5,7 @@ import { createServer, type Server } from "node:http";
 import { once } from "node:events";
 import { describeStartupError } from "./config/startup-error.js";
 
-import { errorHandler } from "./middleware/error.middleware.js";
+import { errorHandler } from "./middleware/errorHandler.js";
 import { healthRouter } from "./routes/health.routes.js";
 
 import { readEnvironment } from "./config/environment.js";

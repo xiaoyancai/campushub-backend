@@ -1,6 +1,5 @@
 import type { RequestHandler, Response } from "express";
 import {
-  ReservationFailure,
   createReservationService,
   type ReservationService,
 } from "../services/reservation.service.js";
@@ -52,7 +51,7 @@ export function createReservationControllers(
   service: ReservationService = createReservationService(),
 ): ReservationControllers {
   return {
-    async createReservation(request, response, next): Promise<void> {
+    async createReservation(request, response): Promise<void> {
       const body = request.body;
       if (
         !isRecord(body) ||
@@ -72,89 +71,50 @@ export function createReservationControllers(
         );
         return;
       }
-      try {
-        response.status(201).json(
-          await service.create({
-            resourceId: body.resourceId,
-            userId: body.userId,
-            startTime: body.startTime,
-            endTime: body.endTime,
-          }),
-        );
-      } catch (error: unknown) {
-        if (error instanceof ReservationFailure) {
-          fail(
-            response,
-            error.code === "UNKNOWN_RESOURCE" ||
-              error.code === "VALIDATION_ERROR"
-              ? 400
-              : 409,
-            error.code,
-            error.message,
-          );
-          return;
-        }
-        next(error);
-      }
+      response.status(201).json(
+        await service.create({
+          resourceId: body.resourceId,
+          userId: body.userId,
+          startTime: body.startTime,
+          endTime: body.endTime,
+        }),
+      );
     },
-    async confirmReservation(request, response, next): Promise<void> {
-      try {
-        const id = request.params.id;
-        const reservation =
-          id === undefined ? undefined : await service.confirm(id);
-        if (!reservation) {
-          fail(response, 404, "NOT_FOUND", "Reservation not found.");
-          return;
-        }
-        response.status(200).json(reservation);
-      } catch (error: unknown) {
-        if (
-          error instanceof ReservationFailure &&
-          error.code === "INVALID_TRANSITION"
-        ) {
-          fail(response, 409, error.code, error.message);
-          return;
-        }
-        next(error);
+    async confirmReservation(request, response): Promise<void> {
+      const id = request.params.id;
+      const reservation =
+        id === undefined ? undefined : await service.confirm(id);
+      if (!reservation) {
+        fail(response, 404, "NOT_FOUND", "Reservation not found.");
+        return;
       }
+      response.status(200).json(reservation);
     },
-    async cancelReservation(request, response, next): Promise<void> {
-      try {
-        const id = request.params.id;
-        if (id === undefined || !(await service.cancel(id))) {
-          fail(response, 404, "NOT_FOUND", "Reservation not found.");
-          return;
-        }
-        response.status(204).end();
-      } catch (error: unknown) {
-        next(error);
+    async cancelReservation(request, response): Promise<void> {
+      const id = request.params.id;
+      if (id === undefined || !(await service.cancel(id))) {
+        fail(response, 404, "NOT_FOUND", "Reservation not found.");
+        return;
       }
+      response.status(204).end();
     },
-    async getReservation(request, response, next): Promise<void> {
-      try {
-        const id = request.params.id;
-        const reservation =
-          id === undefined ? undefined : await service.getById(id);
-        if (reservation === undefined) {
-          fail(response, 404, "NOT_FOUND", "Reservation not found.");
-          return;
-        }
-        response.status(200).json(reservation);
-      } catch (error: unknown) {
-        next(error);
+    async getReservation(request, response): Promise<void> {
+      const id = request.params.id;
+      const reservation =
+        id === undefined ? undefined : await service.getById(id);
+      if (reservation === undefined) {
+        fail(response, 404, "NOT_FOUND", "Reservation not found.");
+        return;
       }
+      response.status(200).json(reservation);
     },
-    async listUserReservations(request, response, next): Promise<void> {
+    async listUserReservations(request, response): Promise<void> {
       const userId = request.params.userId;
       if (!nonempty(userId)) {
         fail(response, 400, "VALIDATION_ERROR", "userId must be non-empty.");
         return;
       }
-      try {
-        response.status(200).json(await service.listForUser(userId));
-      } catch (error: unknown) {
-        next(error);
-      }
+      response.status(200).json(await service.listForUser(userId));
     },
   };
 }

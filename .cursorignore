@@ -1,0 +1,23 @@
+# Dependencies and generated builds, at every depth
+**/node_modules/
+**/dist/
+**/build/
+**/coverage/
+**/.vite/
+**/package-lock.json
+**/yarn.lock
+**/pnpm-lock.yaml
+**/bun.lock*
+# Historical logs and generated bundle maps must never enter agent context
+**/logs/
+**/historical-logs/
+**/*.log
+**/*.log.*
+**/*.tsbuildinfo
+**/*.map
+**/generated/
+**/api-docs/
+**/openapi-generated/
+.env
+.env.*
+!.env.example

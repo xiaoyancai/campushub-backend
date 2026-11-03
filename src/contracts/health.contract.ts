@@ -3,8 +3,3 @@ export interface HealthResponse {
   service: "campushub-backend";
   timestamp: string;
 }
-
-export interface ErrorResponse {
-  status: "error";
-  message: string;
-}
