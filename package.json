@@ -8,10 +8,12 @@
     "dev": "node --import tsx src/app.ts",
     "start": "node dist/app.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test test/*.test.ts",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "seed": "node --import tsx src/seed.ts",
     "dev:lab": "node --import tsx tools/lab-server.ts",
-    "lint": "client/node_modules/.bin/eslint --config client/eslint.config.ts src tools test client/src client/integration client/vite.config.ts"
+    "lint": "client/node_modules/.bin/eslint --config client/eslint.config.ts src tools test client/src client/integration client/vite.config.ts",
+    "test:legacy": "node --import tsx --test test/*.test.ts",
+    "test:coverage": "npm test -- --coverage"
   },
   "keywords": [],
   "author": "",
@@ -19,13 +21,18 @@
   "type": "module",
   "devDependencies": {
     "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
     "@types/node": "^26.6.2",
+    "@types/supertest": "^7.2.1",
     "eslint": "^10.11.0",
+    "jest": "^30.5.2",
     "mongodb-memory-server": "^11.3.0",
     "prettier": "^3.9.8",
+    "supertest": "^7.3.2",
+    "ts-jest": "^29.4.15",
     "ts-node": "^10.9.2",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^6.0.3"
   },
   "dependencies": {
     "express": "^5.2.1",
