@@ -85,7 +85,7 @@ export function createReservationService(): ReservationService {
             startTime: { $lt: endTime },
             endTime: { $gt: startTime },
           }).session(session);
-          if (overlap)
+          if (!overlap)
             throw new ReservationFailure(
               "DOUBLE_BOOKING",
               "Resource is already reserved for this time slot.",
