@@ -104,5 +104,6 @@ jobs:
         if: always()
         with:
           name: auto-heal-audit
+          include-hidden-files: true
           path: .auto-heal/
           retention-days: 7
