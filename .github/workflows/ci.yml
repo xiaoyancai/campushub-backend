@@ -1,0 +1,108 @@
+name: CampusHub CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      jest: ${{ steps.jest.outcome }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            client/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix client
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npx --no-install tsc -p tools/auto-heal/tsconfig.json
+      - run: node --import tsx --test tools/auto-heal/runner.test.ts
+      - name: Jest (preserve failing exit status)
+        id: jest
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test -- --ci --runInBand 2>&1 | tee test-results.log
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && steps.jest.outcome != 'skipped' }}
+        with:
+          name: jest-failure-context
+          path: test-results.log
+          retention-days: 7
+  auto-fix:
+    needs: test
+    # Lint/install failures must not invoke the model. Never give fork code secrets.
+    if: >-
+      ${{ failure() && needs.test.outputs.jest == 'failure' &&
+          (github.event_name == 'push' ||
+           (github.event.pull_request.head.repo.full_name == github.repository &&
+            !startsWith(github.head_ref, 'fix/auto-heal-'))) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            client/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix client
+      - uses: actions/download-artifact@v4
+        with:
+          name: jest-failure-context
+          path: .auto-heal
+      - name: Generate source-only fix
+        env:
+          AUTO_HEAL_API_KEY: ${{ secrets.AUTO_HEAL_API_KEY }}
+          AUTO_HEAL_ENDPOINT: ${{ vars.AUTO_HEAL_ENDPOINT }}
+          AUTO_HEAL_MODEL: ${{ vars.AUTO_HEAL_MODEL }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node --import tsx tools/auto-heal/runner.ts
+      - name: Verify patch before publication
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run lint
+          npm run typecheck
+          npx --no-install tsc -p tools/auto-heal/tsconfig.json
+          npm test -- --ci --runInBand 2>&1 | tee .auto-heal/verification.log
+          git diff --check
+      - name: Open one remediation PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          SOURCE_PR: ${{ github.event.pull_request.number }}
+        run: node --import tsx tools/auto-heal/publish.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: auto-heal-audit
+          path: .auto-heal/
+          retention-days: 7

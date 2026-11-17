@@ -8,3 +8,7 @@ dist/
 .DS_Store
 
 coverage/
+
+# CI auto-healing evidence (uploaded as workflow artifacts)
+.auto-heal/
+test-results.log

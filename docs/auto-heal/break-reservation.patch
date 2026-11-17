@@ -1,0 +1,13 @@
+diff --git a/src/services/reservation.service.ts b/src/services/reservation.service.ts
+index 1b01e7c..ae173da 100644
+--- a/src/services/reservation.service.ts
++++ b/src/services/reservation.service.ts
+@@ -85,7 +85,7 @@ export function createReservationService(): ReservationService {
+             startTime: { $lt: endTime },
+             endTime: { $gt: startTime },
+           }).session(session);
+-          if (overlap)
++          if (!overlap)
+             throw new ReservationFailure(
+               "DOUBLE_BOOKING",
+               "Resource is already reserved for this time slot.",
