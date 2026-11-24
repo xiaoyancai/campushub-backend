@@ -66,6 +66,9 @@ jobs:
       - run: npm ci
       - run: npm ci --prefix client
       - run: npx playwright test
+        env:
+          # Firefox requires the home directory to belong to the container user.
+          HOME: /root
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
