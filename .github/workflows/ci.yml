@@ -45,6 +45,30 @@ jobs:
           name: jest-failure-context
           path: test-results.log
           retention-days: 7
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            client/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix client
+      - run: npx playwright install --with-deps
+      - run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-failure-context
+          path: test-results/
+          retention-days: 7
   auto-fix:
     needs: test
     # Lint/install failures must not invoke the model. Never give fork code secrets.

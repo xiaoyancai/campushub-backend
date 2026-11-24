@@ -12,3 +12,7 @@ coverage/
 # CI auto-healing evidence (uploaded as workflow artifacts)
 .auto-heal/
 test-results.log
+
+# Playwright output
+/playwright-report/
+/test-results/
